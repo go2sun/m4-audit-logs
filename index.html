@@ -2,44 +2,42 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>M4 AR-Audit Dashboard</title>
+    <title>M4 AR-Audit | DEBUG MODE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; margin: 0; overflow-x: hidden; }
-        #matrix { position: fixed; top: 0; left: 0; z-index: -1; opacity: 0.15; }
-        .card { border: 1px solid #004400; background: rgba(5, 5, 5, 0.9); transition: 0.3s; backdrop-filter: blur(5px); }
-        .card:hover { border-color: #0f0; box-shadow: 0 0 20px rgba(0,255,0,0.3); transform: translateY(-5px); }
-        .bug-tag { color: #ff0055; font-weight: bold; border: 1px solid #ff0055; padding: 0 4px; border-radius: 4px; background: rgba(255,0,85,0.1); }
-        .focus-tag { color: #ffaa00; text-decoration: underline; font-weight: bold; }
-        .keyword-tag { color: #00e5ff; font-style: italic; }
+        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; margin: 0; }
+        #matrix { position: fixed; top: 0; left: 0; z-index: -1; opacity: 0.2; }
+        .card { border: 1px solid #004400; background: rgba(5, 5, 5, 0.95); transition: 0.4s; backdrop-filter: blur(10px); }
+        .card:hover { border-color: #0f0; transform: scale(1.02); }
+        /* 关键词高亮样式 */
+        .bug-alert { color: #ff3e3e; font-weight: bold; border-left: 3px solid #ff3e3e; padding-left: 8px; margin: 5px 0; background: rgba(255, 62, 62, 0.1); }
+        .focus-point { color: #ffcc00; font-weight: bold; margin: 5px 0; }
+        .keyword-chip { background: #004488; color: #00d9ff; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; display: inline-block; margin: 2px; }
     </style>
 </head>
 <body class="p-8">
     <canvas id="matrix"></canvas>
-    <h1 class="text-3xl font-bold mb-8 border-b border-green-900 pb-4 flex items-center gap-3">
-        <span class="glitch">👁️</span> M4 视觉审计系统 <span class="text-xs font-normal text-green-800">v3.0_DEBUG_MODE</span>
+    <h1 class="text-3xl font-bold mb-8 border-b border-green-900 pb-4 flex justify-between items-center">
+        <span>👁️ M4 视觉审计 <span class="text-red-600 animate-pulse text-sm">[DEBUG ACTIVE]</span></span>
+        <span class="text-xs font-mono text-green-700">SYSTEM_UPTIME: 1772336108</span>
     </h1>
     <div id="logs" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
 
     <script>
+        // Matrix 背景动画 (已略) - 保持之前的逻辑
         const canvas = document.getElementById('matrix');
         const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        const letters = "01";
-        const fontSize = 16;
-        const columns = canvas.width / fontSize;
-        const drops = Array(Math.floor(columns)).fill(1);
-        function drawMatrix() {
-            ctx.fillStyle = "rgba(0, 0, 0, 0.05)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "#0f0"; ctx.font = fontSize + "px monospace";
-            for (let i = 0; i < drops.length; i++) {
-                const text = letters.charAt(Math.floor(Math.random() * letters.length));
-                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+        const drops = Array(Math.floor(canvas.width/16)).fill(1);
+        setInterval(() => {
+            ctx.fillStyle = "rgba(0,0,0,0.05)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.fillStyle = "#0f0"; ctx.font = "16px monospace";
+            drops.forEach((y, i) => {
+                ctx.fillText(Math.floor(Math.random()*2), i*16, y*16);
+                if(y*16 > canvas.height && Math.random() > 0.975) drops[i] = 0;
                 drops[i]++;
-            }
-        }
-        setInterval(drawMatrix, 33);
+            });
+        }, 33);
 
         async function fetchLogs() {
             const user = 'go2sun'; const repo = 'm4-audit-logs';
@@ -54,20 +52,22 @@
                 const imgMatch = text.match(/!\[Screenshot\]\(\.\/screenshots\/(.*?)\)/);
                 const imgUrl = imgMatch ? `./screenshots/${imgMatch[1]}` : '';
                 
-                let analysis = text.split('\n').filter(line => line.trim() !== '' && !line.startsWith('#') && !line.startsWith('!'))[0] || "";
-
-                // 高亮处理逻辑
-                analysis = analysis
-                    .replace(/BUG:(.*?)(?=FOCUS:|KEYWORDS:|$)/gi, '<span class="bug-tag">❌ BUG: </span>')
-                    .replace(/FOCUS:(.*?)(?=BUG:|KEYWORDS:|$)/gi, '<span class="focus-tag">🎯 FOCUS: </span>')
-                    .replace(/KEYWORDS:(.*?)(?=BUG:|FOCUS:|$)/gi, '<span class="keyword-tag">🔑 </span>');
+                // 核心解析逻辑：圈出 Bug 和重点
+                let content = text.split('\n').filter(l => l.trim() !== '' && !l.startsWith('#') && !l.startsWith('!'))[0] || "";
+                
+                content = content
+                    .replace(/BUG:(.*?)(?=FOCUS:|KEYWORDS:|$)/gi, '<div class="bug-alert">🚨 </div>')
+                    .replace(/FOCUS:(.*?)(?=BUG:|KEYWORDS:|$)/gi, '<div class="focus-point">🎯 </div>')
+                    .replace(/KEYWORDS:(.*?)(?=BUG:|FOCUS:|$)/gi, (m, p1) => {
+                        return p1.split(/[,，]/).map(k => `<span class="keyword-chip"># ${k.trim()}</span>`).join('');
+                    });
 
                 const card = document.createElement('div');
                 card.className = 'card p-6 rounded-xl';
                 card.innerHTML = `
-                    <div class="text-[10px] text-green-900 mb-3 font-bold">${file.name}</div>
-                    ${imgUrl ? `<img src="${imgUrl}" class="w-full h-44 object-cover rounded border border-green-900 mb-4 bg-black">` : ''}
-                    <div class="text-sm leading-relaxed text-green-400">${analysis}</div>
+                    <div class="text-[10px] text-green-900 mb-2 font-bold font-mono text-right tracking-tighter">${file.name}</div>
+                    ${imgUrl ? `<img src="${imgUrl}" class="w-full h-44 object-cover rounded border border-green-900 mb-4 bg-black shadow-inner shadow-green-900/20">` : ''}
+                    <div class="space-y-2">${content}</div>
                 `;
                 container.appendChild(card);
             }
