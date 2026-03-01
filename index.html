@@ -17,32 +17,30 @@
 <body class="p-6">
     <div class="flex justify-between items-center mb-8 border-b border-green-900 pb-4">
         <h1 class="text-2xl font-bold tracking-tighter">👁️ M4 视觉审计系统 (最终版)</h1>
-        <div class="flex items-center gap-4">
-            <button onclick="triggerClear()" class="btn-clear px-4 py-1 rounded text-sm font-bold">一键清空 (CLEAR)</button>
-            <div class="text-right text-[10px] text-green-700">状态：核心已就绪</div>
-        </div>
+        <button onclick="triggerClear()" class="btn-clear px-4 py-1 rounded text-sm font-bold">一键清空 (CLEAR)</button>
     </div>
     <div id="logs" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
 
     <script>
-        // 核心修复：更稳定的信号触发逻辑
         function triggerClear() {
-            if(confirm("🚨 警告：确定要物理清空所有审计记录吗？")) {
+            if(confirm("🚨 确定要物理清空所有审计记录吗？")) {
                 const signal = 'clear_all_logs';
-                // 创建隐藏输入框进行复制
                 const el = document.createElement('textarea');
                 el.value = signal;
                 document.body.appendChild(el);
                 el.select();
-                try {
-                    document.execCommand('copy');
-                    alert("🧹 清理信号已发送！请观察终端执行，网页随后刷新。");
-                    // 延迟刷新给 Git 推送留时间
-                    setTimeout(() => location.reload(), 5000);
-                } catch (err) {
-                    alert("复制信号失败，请手动在剪贴板输入 clear_all_logs");
-                }
+                document.execCommand('copy');
                 document.body.removeChild(el);
+                
+                // 提示用户
+                const btn = event.target;
+                btn.innerText = "🚀 信号已发送...";
+                
+                // 给 Go 引擎 3 秒时间读取，然后再刷新网页
+                setTimeout(() => {
+                    btn.innerText = "一键清空 (CLEAR)";
+                    location.reload();
+                }, 3000);
             }
         }
 
@@ -51,14 +49,11 @@
             const files = await res.json();
             const container = document.getElementById('logs');
             container.innerHTML = '';
-            // 过滤 MD 文件并按时间倒序
             const mds = files.filter(f => f.name.endsWith('.md')).reverse();
             for (const f of mds) {
                 const data = await (await fetch(f.download_url)).text();
-                // 提取图片文件名
                 const imgMatch = data.match(/!\[Screenshot\]\(\.\/screenshots\/(.*?)\)/);
                 const img = imgMatch ? imgMatch[1] : "";
-                // 提取第一段文字内容
                 let content = data.split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('!'))[0] || "";
                 
                 const card = document.createElement('div');
