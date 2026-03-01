@@ -2,92 +2,51 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>M4 AI 视觉审计中心</title>
+    <title>M4 指挥中心 V3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: #000; color: #0f0; font-family: "PingFang SC", "Microsoft YaHei", monospace; margin: 0; }
-        #matrix { position: fixed; top: 0; left: 0; z-index: -1; opacity: 0.15; }
-        .card { border: 1px solid #004400; background: rgba(5, 5, 5, 0.9); transition: 0.4s; backdrop-filter: blur(8px); }
-        .card:hover { border-color: #0f0; transform: translateY(-5px); box-shadow: 0 0 20px rgba(0,255,0,0.2); }
-        /* 中文标签样式 */
-        .bug-tag { color: #ff4d4d; border: 1px solid #ff4d4d; padding: 2px 8px; border-radius: 4px; background: rgba(255, 77, 77, 0.1); font-weight: bold; }
-        .focus-tag { color: #ffcc00; font-weight: bold; text-decoration: underline; }
-        .keyword-chip { background: #003366; color: #00d9ff; padding: 1px 6px; border-radius: 3px; font-size: 11px; margin-right: 4px; }
+        body { background: #000; color: #0f0; font-family: "PingFang SC", sans-serif; }
+        .card { border: 1px solid #004400; background: rgba(0, 10, 0, 0.9); transition: 0.3s; }
+        .bug-box { border: 1px solid #ff4d4d; color: #ff4d4d; padding: 5px; margin-top: 5px; background: rgba(255,0,0,0.1); border-radius: 4px; }
+        .focus-box { color: #ffcc00; margin-top: 5px; font-weight: bold; }
+        .tag { background: #003366; color: #00d9ff; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-right: 4px; }
     </style>
 </head>
 <body class="p-6">
-    <canvas id="matrix"></canvas>
-    
-    <div class="flex justify-between items-center mb-8 border-b border-green-900 pb-4">
-        <h1 class="text-2xl font-bold tracking-widest">👁️ M4 视觉审计系统 <span class="text-sm font-normal text-green-700 ml-4">实时监控中...</span></h1>
-        <div class="text-right">
-            <div class="text-[10px] text-green-800 font-mono">内核版本: M4_CORE_V3_FINAL</div>
-            <div id="last-update" class="text-[10px] text-green-600 font-mono">同步时间: --:--:--</div>
-        </div>
+    <div class="flex justify-between items-center mb-6 border-b border-green-900 pb-4">
+        <h1 class="text-2xl font-bold tracking-tighter">👁️ M4 视觉审计系统 (最终版)</h1>
+        <div class="text-right text-[10px] text-green-700">状态：核心已就绪 | 模式：中文深度审计</div>
     </div>
-
     <div id="logs" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-
     <script>
-        // 数字雨背景
-        const canvas = document.getElementById('matrix');
-        const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        const drops = Array(Math.floor(canvas.width/16)).fill(1);
-        setInterval(() => {
-            ctx.fillStyle = "rgba(0,0,0,0.05)"; ctx.fillRect(0,0,canvas.width,canvas.height);
-            ctx.fillStyle = "#0f0"; ctx.font = "15px monospace";
-            drops.forEach((y, i) => {
-                ctx.fillText(Math.floor(Math.random()*2), i*16, y*16);
-                if(y*16 > canvas.height && Math.random() > 0.98) drops[i] = 0;
-                drops[i]++;
-            });
-        }, 40);
-
-        async function fetchLogs() {
-            try {
-                const res_files = await fetch('https://api.github.com/repos/go2sun/m4-audit-logs/contents/');
-                const files = await res_files.json();
-                const container = document.getElementById('logs');
-                container.innerHTML = '';
+        async function load() {
+            const res = await fetch('https://api.github.com/repos/go2sun/m4-audit-logs/contents/');
+            const files = await res.json();
+            const container = document.getElementById('logs');
+            container.innerHTML = '';
+            const mds = files.filter(f => f.name.endsWith('.md')).reverse();
+            for (const f of mds) {
+                const data = await (await fetch(f.download_url)).text();
+                const img = data.match(/!\[Screenshot\]\(\.\/screenshots\/(.*?)\)/)?.[1];
+                let content = data.split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('!'))[0] || "";
                 
-                const mdFiles = files.filter(f => f.name.endsWith('.md') && f.name.startsWith('AR_Audit_')).reverse();
-                document.getElementById('last-update').innerText = '同步时间: ' + new Date().toLocaleTimeString();
+                // 视觉格式化
+                content = content
+                    .replace(/BUG:(.*?)(?=FOCUS:|KEYWORDS:|$)/gi, '<div class="bug-box">🚨 故障解析: $1</div>')
+                    .replace(/FOCUS:(.*?)(?=BUG:|KEYWORDS:|$)/gi, '<div class="focus-box">🎯 审计重点: $1</div>')
+                    .replace(/KEYWORDS:(.*?)(?=BUG:|FOCUS:|$)/gi, (m, p1) => '<div class="mt-2">' + p1.split(',').map(t => `<span class="tag"># ${t.trim()}</span>`).join('') + '</div>');
 
-                for (const file of mdFiles) {
-                    const res = await fetch(file.download_url);
-                    const text = await res.text();
-                    
-                    const imgMatch = text.match(/!\[Screenshot\]\(\.\/screenshots\/(.*?)\)/);
-                    const imgUrl = imgMatch ? `./screenshots/${imgMatch[1]}` : '';
-                    
-                    let content = text.split('\n').filter(l => l.trim() !== '' && !l.startsWith('#') && !l.startsWith('!'))[0] || "";
-
-                    // 将英文标识符转换为中文视觉元素
-                    content = content
-                        .replace(/BUG:(.*?)(?=FOCUS:|KEYWORDS:|$)/gi, '<div class="mt-2"><span class="bug-tag">🚨 故障解析: $1</span></div>')
-                        .replace(/FOCUS:(.*?)(?=BUG:|KEYWORDS:|$)/gi, '<div class="mt-2 text-sm"><span class="focus-tag">🎯 审计重点:</span> <span class="text-green-300">$1</span></div>')
-                        .replace(/KEYWORDS:(.*?)(?=BUG:|FOCUS:|$)/gi, (m, p1) => {
-                            return '<div class="mt-2 text-xs opacity-80">' + p1.split(/[,，]/).map(k => `<span class="keyword-chip"># ${k.trim()}</span>`).join('') + '</div>';
-                        });
-
-                    const card = document.createElement('div');
-                    card.className = 'card p-5 rounded-lg';
-                    card.innerHTML = `
-                        <div class="flex justify-between items-center mb-3">
-                            <span class="text-[9px] text-green-900 font-mono font-bold">${file.name}</span>
-                            <span class="text-[9px] px-2 py-0.5 border border-green-950 text-green-900 rounded">已同步</span>
-                        </div>
-                        ${imgUrl ? `<img src="${imgUrl}" class="w-full h-40 object-cover rounded border border-green-950 mb-4 hover:opacity-80 transition-opacity">` : ''}
-                        <div class="leading-relaxed">${content}</div>
-                    `;
-                    container.appendChild(card);
-                }
-            } catch (e) { console.error("同步失败", e); }
+                const card = document.createElement('div');
+                card.className = 'card p-4 rounded-lg shadow-lg shadow-green-900/10';
+                card.innerHTML = `
+                    <div class="text-[9px] text-green-900 mb-2">${f.name}</div>
+                    <img src="./screenshots/${img}" class="w-full h-40 object-cover rounded border border-green-950 mb-3">
+                    <div class="text-sm text-green-400">${content}</div>
+                `;
+                container.appendChild(card);
+            }
         }
-        fetchLogs();
-        // 每分钟自动刷新一次，实现全屏监控
-        setInterval(fetchLogs, 60000);
+        load(); setInterval(load, 60000);
     </script>
 </body>
 </html>
