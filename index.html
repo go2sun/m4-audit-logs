@@ -5,10 +5,8 @@
     <title>M4 指挥中心 V3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: #000; color: #0f0; font-family: "PingFang SC", sans-serif; overflow-x: hidden; }
-        #matrix { position: fixed; top: 0; left: 0; z-index: -1; opacity: 0.1; }
-        .card { border: 1px solid #004400; background: rgba(0, 10, 0, 0.9); transition: 0.3s; backdrop-filter: blur(5px); }
-        .card:hover { border-color: #0f0; transform: scale(1.02); }
+        body { background: #000; color: #0f0; font-family: "PingFang SC", sans-serif; }
+        .card { border: 1px solid #004400; background: rgba(0, 10, 0, 0.9); }
         .btn-clear { 
             background: rgba(255, 0, 0, 0.2); border: 1px solid #ff4d4d; color: #ff4d4d;
             transition: all 0.3s; cursor: pointer;
@@ -17,29 +15,34 @@
     </style>
 </head>
 <body class="p-6">
-    <canvas id="matrix"></canvas>
-    <div class="flex justify-between items-center mb-8 border-b border-green-900 pb-4 relative z-10">
+    <div class="flex justify-between items-center mb-8 border-b border-green-900 pb-4">
         <h1 class="text-2xl font-bold tracking-tighter">👁️ M4 视觉审计系统 (最终版)</h1>
         <div class="flex items-center gap-4">
             <button onclick="triggerClear()" class="btn-clear px-4 py-1 rounded text-sm font-bold">一键清空 (CLEAR)</button>
             <div class="text-right text-[10px] text-green-700">状态：核心已就绪</div>
         </div>
     </div>
-    <div id="logs" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10"></div>
+    <div id="logs" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
 
     <script>
-        // 数字雨逻辑 (省略以保持简洁...)
-        async function triggerClear() {
-            if(confirm("确定要清空所有审计记录吗？")) {
-                // 原理：通过修改剪贴板发送信号给后台的 nanoclaw
+        // 核心修复：更稳定的信号触发逻辑
+        function triggerClear() {
+            if(confirm("🚨 警告：确定要物理清空所有审计记录吗？")) {
+                const signal = 'clear_all_logs';
+                // 创建隐藏输入框进行复制
                 const el = document.createElement('textarea');
-                el.value = 'clear_all_logs';
+                el.value = signal;
                 document.body.appendChild(el);
                 el.select();
-                document.execCommand('copy');
+                try {
+                    document.execCommand('copy');
+                    alert("🧹 清理信号已发送！请观察终端执行，网页随后刷新。");
+                    // 延迟刷新给 Git 推送留时间
+                    setTimeout(() => location.reload(), 5000);
+                } catch (err) {
+                    alert("复制信号失败，请手动在剪贴板输入 clear_all_logs");
+                }
                 document.body.removeChild(el);
-                alert("清理信号已发送！正在重置指挥中心...");
-                setTimeout(() => location.reload(), 2000);
             }
         }
 
@@ -48,18 +51,22 @@
             const files = await res.json();
             const container = document.getElementById('logs');
             container.innerHTML = '';
+            // 过滤 MD 文件并按时间倒序
             const mds = files.filter(f => f.name.endsWith('.md')).reverse();
             for (const f of mds) {
                 const data = await (await fetch(f.download_url)).text();
-                const img = data.match(/!\[Screenshot\]\(\.\/screenshots\/(.*?)\)/)?.[1];
+                // 提取图片文件名
+                const imgMatch = data.match(/!\[Screenshot\]\(\.\/screenshots\/(.*?)\)/);
+                const img = imgMatch ? imgMatch[1] : "";
+                // 提取第一段文字内容
                 let content = data.split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('!'))[0] || "";
                 
                 const card = document.createElement('div');
                 card.className = 'card p-4 rounded-lg';
                 card.innerHTML = `
                     <div class="text-[9px] text-green-900 mb-2">${f.name}</div>
-                    <img src="./screenshots/${img}" class="w-full h-40 object-cover rounded border border-green-950 mb-3">
-                    <div class="text-sm text-green-400">${content}</div>
+                    ${img ? `<img src="./screenshots/${img}" class="w-full h-40 object-cover rounded border border-green-950 mb-3">` : ''}
+                    <div class="text-sm text-green-400 leading-relaxed">${content}</div>
                 `;
                 container.appendChild(card);
             }
