@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M4 AR-Audit Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #0a0a0a; color: #00ff9d; font-family: 'Courier New', Courier, monospace; }
+        .audit-card { border: 1px solid #333; transition: 0.3s; background: rgba(20,20,20,0.8); }
+        .audit-card:hover { border-color: #00ff9d; box-shadow: 0 0 15px rgba(0,255,157,0.3); }
+    </style>
+</head>
+<body class="p-8">
+    <header class="mb-12 border-b border-green-900 pb-4">
+        <h1 class="text-3xl font-bold uppercase tracking-widest">👁️ M4 Holographic Audit Log</h1>
+        <p class="text-gray-500 mt-2">Real-time Visual Intelligence from MacMiniM4</p>
+    </header>
+
+    <div id="logs" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="animate-pulse text-green-800">正在同步 M4 神经元数据...</div>
+    </div>
+
+    <script>
+        // 自动获取仓库内容
+        async function fetchLogs() {
+            const user = '你的用户名'; // 修改这里
+            const repo = 'm4-audit-logs';
+            const response = await fetch(`https://api.github.com/repos/${user}/${repo}/contents/`);
+            const files = await response.json();
+            
+            const logsContainer = document.getElementById('logs');
+            logsContainer.innerHTML = '';
+
+            files.filter(f => f.name.endsWith('.md') && f.name !== 'README.md').reverse().forEach(async file => {
+                const res = await fetch(file.download_url);
+                const text = await res.text();
+                const content = text.split('\n\n')[1] || "解析中...";
+                
+                const card = document.createElement('div');
+                card.className = 'audit-card p-6 rounded-lg';
+                card.innerHTML = `
+                    <div class="text-xs text-gray-500 mb-2">${file.name.replace('AR_Audit_', '').replace('.md', '')}</div>
+                    <div class="text-sm leading-relaxed">${content}</div>
+                    <div class="mt-4 text-[10px] text-green-900 font-bold uppercase tracking-tighter">Verified by Moondream 1.6B</div>
+                `;
+                logsContainer.appendChild(card);
+            });
+        }
+        fetchLogs();
+    </script>
+</body>
+</html>
